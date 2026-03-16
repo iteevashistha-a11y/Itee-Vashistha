@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import json
-import time
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
@@ -18,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ── CUSTOM CSS + VOICE UI ──
+# ── CUSTOM CSS ──
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -136,79 +135,6 @@ html, body, [data-testid="stAppViewContainer"] {
     margin: 0 0 12px 0;
 }
 
-/* Voice button */
-.voice-btn-wrap {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 12px;
-}
-.mic-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(135deg, #0D1B2A, #1B3A6B);
-    color: white;
-    border: none;
-    border-radius: 50px;
-    padding: 10px 22px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    transition: all 0.2s;
-    box-shadow: 0 4px 14px rgba(27,58,107,0.3);
-}
-.mic-btn:hover {
-    background: linear-gradient(135deg, #1B3A6B, #2E75B6);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(27,58,107,0.4);
-}
-.mic-btn.recording {
-    background: linear-gradient(135deg, #c0392b, #e74c3c) !important;
-    animation: pulse 1.2s infinite;
-}
-.mic-btn.processing {
-    background: linear-gradient(135deg, #F0A500, #f39c12) !important;
-}
-@keyframes pulse {
-    0%, 100% { box-shadow: 0 4px 14px rgba(231,76,60,0.4); }
-    50% { box-shadow: 0 4px 28px rgba(231,76,60,0.8); transform: scale(1.03); }
-}
-
-.voice-status {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
-    font-style: italic;
-}
-.voice-status.active { color: #e74c3c; font-weight: 600; }
-.voice-status.processing { color: #F0A500; font-weight: 600; }
-.voice-status.done { color: #1DB954; font-weight: 600; }
-
-.transcript-box {
-    background: linear-gradient(135deg, #EBF3FB, #f0f7ff);
-    border: 1.5px solid #2E75B6;
-    border-radius: 12px;
-    padding: 14px 18px;
-    font-size: 14px;
-    color: #1B3A6B;
-    font-weight: 500;
-    margin-bottom: 10px;
-    line-height: 1.6;
-    position: relative;
-}
-.transcript-box::before {
-    content: "🎤 Transcribed:";
-    display: block;
-    font-size: 11px;
-    font-weight: 700;
-    color: #2E75B6;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-bottom: 6px;
-}
-
 .voice-tip {
     background: rgba(240,165,0,0.08);
     border: 1px solid rgba(240,165,0,0.25);
@@ -219,6 +145,18 @@ html, body, [data-testid="stAppViewContainer"] {
     margin-bottom: 14px;
 }
 
+.transcript-box {
+    background: linear-gradient(135deg, #EBF3FB, #f0f7ff);
+    border: 1.5px solid #2E75B6;
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: #000000;
+    font-weight: 500;
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
 div[data-testid="stTextArea"] textarea {
     border-radius: 12px !important;
     border: 1.5px solid var(--border) !important;
@@ -226,11 +164,13 @@ div[data-testid="stTextArea"] textarea {
     font-family: 'DM Sans', sans-serif !important;
     padding: 12px 16px !important;
     background: var(--grey) !important;
+    color: #000000 !important;
 }
 div[data-testid="stTextArea"] textarea:focus {
     border-color: var(--sky) !important;
     background: white !important;
     box-shadow: 0 0 0 3px rgba(46,117,182,0.1) !important;
+    color: #000000 !important;
 }
 
 div[data-testid="stRadio"] label {
@@ -322,7 +262,6 @@ div[data-testid="stButton"] > button {
 .progress-pct { font-size: 14px; font-weight: 700; color: var(--accent); min-width: 40px; text-align: right; }
 [data-testid="column"] { padding: 0 8px !important; }
 </style>
-
 """, unsafe_allow_html=True)
 
 
