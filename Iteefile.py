@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+import os
+load_dotenv()
+api_key = os.getenv("OPENAI_API_KEY")
 import streamlit as st
 st.set_page_config(page_title="Prompt Enhancer", page_icon="📝")
 st.title("📝 Prompt Engineer — General Prompt Enhancer")
