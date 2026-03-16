@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import json
 import time
+import requests
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -322,126 +323,27 @@ div[data-testid="stButton"] > button {
 [data-testid="column"] { padding: 0 8px !important; }
 </style>
 
-<!-- Deepgram Voice Component -->
-<script>
-const DEEPGRAM_API_KEY = window._deepgramKey || "";
-
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-
-async function startVoice(questionId) {
-    if (isRecording) {
-        stopVoice(questionId);
-        return;
-    }
-
-    const btn = document.getElementById('mic-btn-' + questionId);
-    const status = document.getElementById('status-' + questionId);
-
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-        audioChunks = [];
-        isRecording = true;
-
-        btn.classList.add('recording');
-        btn.innerHTML = '⏹️ Stop Recording';
-        status.className = 'voice-status active';
-        status.innerText = '🔴 Listening... Speak naturally, take your time';
-
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-
-        mediaRecorder.onstop = async () => {
-            btn.classList.remove('recording');
-            btn.classList.add('processing');
-            btn.innerHTML = '⏳ Processing...';
-            status.className = 'voice-status processing';
-            status.innerText = '✨ Transcribing your response...';
-
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
-            try {
-                const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-IN&punctuate=true&smart_format=true', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Token ' + window._deepgramKey,
-                        'Content-Type': 'audio/webm'
-                    },
-                    body: audioBlob
-                });
-
-                const data = await response.json();
-                const transcript = data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-
-                if (transcript) {
-                    // Show transcript
-                    let transcriptBox = document.getElementById('transcript-' + questionId);
-                    if (!transcriptBox) {
-                        transcriptBox = document.createElement('div');
-                        transcriptBox.id = 'transcript-' + questionId;
-                        transcriptBox.className = 'transcript-box';
-                        btn.parentElement.parentElement.insertBefore(transcriptBox, btn.parentElement.nextSibling);
-                    }
-                    transcriptBox.innerText = transcript;
-                    transcriptBox.style.display = 'block';
-
-                    // Push to Streamlit textarea
-                    const textareas = document.querySelectorAll('textarea');
-                    const mapping = { 'q29': 0, 'q30': 1, 'q31': 2, 'q32': 3 };
-                    const idx = mapping[questionId];
-                    if (idx !== undefined && textareas[idx]) {
-                        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-                        nativeInputValueSetter.call(textareas[idx], transcript);
-                        textareas[idx].dispatchEvent(new Event('input', { bubbles: true }));
-                        textareas[idx].dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-
-                    status.className = 'voice-status done';
-                    status.innerText = '✅ Transcribed! You can edit below if needed.';
-                } else {
-                    status.className = 'voice-status';
-                    status.innerText = "Couldn't catch that. Please try again.";
-                }
-            } catch (err) {
-                status.className = 'voice-status';
-                status.innerText = '❌ Error transcribing. Check your API key.';
-                console.error(err);
-            }
-
-            btn.classList.remove('processing');
-            btn.innerHTML = '🎤 Speak Again';
-            isRecording = false;
-            stream.getTracks().forEach(t => t.stop());
-        };
-
-        mediaRecorder.start();
-
-    } catch (err) {
-        status.innerText = '❌ Microphone access denied. Please allow mic access.';
-        console.error(err);
-    }
-}
-
-function stopVoice(questionId) {
-    if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-    }
-}
-</script>
-""", unsafe_allow_html=True)
-
-
-# ── Inject Deepgram Key to JS ──
-st.markdown(f"""
-<script>
-window._deepgramKey = "{DEEPGRAM_API_KEY}";
-</script>
 """, unsafe_allow_html=True)
 
 
 # ── HELPERS ──
+def transcribe_audio(audio_bytes):
+    """Call Deepgram server-side — key never exposed to browser"""
+    try:
+        response = requests.post(
+            "https://api.deepgram.com/v1/listen?model=nova-2&language=en-IN&punctuate=true&smart_format=true",
+            headers={
+                "Authorization": f"Token {DEEPGRAM_API_KEY}",
+                "Content-Type": "audio/webm"
+            },
+            data=audio_bytes,
+            timeout=30
+        )
+        data = response.json()
+        return data.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "")
+    except Exception:
+        return ""
+
 def section_header(icon, title):
     st.markdown(f"""
     <div class="section-header">
@@ -464,22 +366,28 @@ def card_start():
 def card_end():
     st.markdown('</div>', unsafe_allow_html=True)
 
-def voice_input(question_id, placeholder_text, key, height=110):
-    """Render a voice-enabled text area with mic button"""
-    st.markdown(f"""
+def voice_input(placeholder_text, key, height=110):
+    """Voice-enabled text area — transcription happens server-side, key never sent to browser"""
+    st.markdown("""
     <div class="voice-tip">
-        💡 <strong>Tip:</strong> Click the mic button and speak naturally — or simply type below.
-    </div>
-    <div class="voice-btn-wrap">
-        <button class="mic-btn" id="mic-btn-{question_id}" onclick="startVoice('{question_id}')">
-            🎤 &nbsp;Tap to Speak
-        </button>
-        <span class="voice-status" id="status-{question_id}">Ready to listen...</span>
+        💡 <strong>Tip:</strong> Record your answer below, or simply type.
     </div>
     """, unsafe_allow_html=True)
 
+    audio = st.audio_input("🎤 Tap to speak", key=f"audio_{key}")
+
+    default_value = ""
+    if audio is not None:
+        transcript = transcribe_audio(audio.read())
+        if transcript:
+            default_value = transcript
+            st.markdown(f'<div class="transcript-box">{transcript}</div>', unsafe_allow_html=True)
+        else:
+            st.warning("Couldn't transcribe. Please try again or type below.")
+
     value = st.text_area(
         "",
+        value=default_value,
         placeholder=placeholder_text,
         height=height,
         key=key,
@@ -782,25 +690,25 @@ st.markdown("""
 
 card_start()
 q_label(29, "What did you like MOST about your experience today?")
-r29 = voice_input("q29", "Tell us what stood out positively — the driver, the vehicle, the timing, the booking process...", "q29")
+r29 = voice_input("Tell us what stood out positively — the driver, the vehicle, the timing, the booking process...", "q29")
 responses["Q29_Liked_Most"] = r29
 card_end()
 
 card_start()
 q_label(30, "What was the BIGGEST pain point or disappointment in your journey?")
-r30 = voice_input("q30", "Be candid — we want to know exactly what fell short so we can fix it...", "q30")
+r30 = voice_input("Be candid — we want to know exactly what fell short so we can fix it...", "q30")
 responses["Q30_Pain_Point"] = r30
 card_end()
 
 card_start()
 q_label(31, "What ONE improvement would make the biggest difference?")
-r31 = voice_input("q31", "Your single most impactful suggestion — app feature, driver training, pricing, routing...", "q31")
+r31 = voice_input("Your single most impactful suggestion — app feature, driver training, pricing, routing...", "q31")
 responses["Q31_Top_Improvement"] = r31
 card_end()
 
 card_start()
 q_label(32, "Any additional comments, compliments, or suggestions?")
-r32 = voice_input("q32", "Anything else — a compliment for a great driver, a specific incident, a broader thought...", "q32")
+r32 = voice_input("Anything else — a compliment for a great driver, a specific incident, a broader thought...", "q32")
 responses["Q32_Additional_Comments"] = r32
 card_end()
 
